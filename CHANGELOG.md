@@ -1,5 +1,11 @@
 # @taskless/~example
 
+## 0.0.4
+
+### Patch Changes
+
+- Adds automatic bundling
+
 ## 0.0.2
 
 ### Patch Changes
