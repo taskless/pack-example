@@ -4,6 +4,8 @@ import { manifest } from "./manifest.js";
 /** left as an example of passing context into outputs */
 type Context = {
   fromPre: string;
+  currentChunk?: string;
+  lines?: string[];
 };
 
 /**
@@ -38,6 +40,49 @@ export function pre() {
 }
 
 /**
+ * chunk() is called for each chunk of the response body
+ * it's data is base64 encoded
+ */
+export function chunk() {
+  const input = readInput<Context>();
+  const chunk = input.chunk;
+
+  if (!chunk) {
+    return;
+  }
+
+  // take base64 encoded chunk and decode it
+  const decoder = new TextDecoder("utf8");
+  const decodedChunk = decoder.decode(Host.base64ToArrayBuffer(chunk));
+  const current = (input.context.currentChunk ?? "") + decodedChunk;
+
+  // if no newlines, save the current chunk and return
+  if (!current.includes("\n")) {
+    writeOutput<Context>({
+      context: {
+        currentChunk: current,
+      },
+    });
+
+    return;
+  }
+
+  // split the current chunk by newlines, add to the context lines
+  const lines = (input.context.lines ?? [])
+    .concat(current.split("\n"))
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  // save the lines and reset the current chunk
+  writeOutput<Context>({
+    context: {
+      currentChunk: "",
+      lines,
+    },
+  });
+}
+
+/**
  * post() is called after the request is sent to the host
  * and contains the response body
  */
@@ -53,6 +98,7 @@ export function post() {
       // explicit capture from the prior context
       testPostFromPre: input.context.fromPre,
       testResponseData: responseDataC,
+      testChunk: input.context.lines?.join("~~~"),
     },
   });
 }

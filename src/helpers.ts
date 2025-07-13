@@ -1,8 +1,5 @@
 import { type PluginOutput, type PluginInput } from "@taskless/loader";
 import { type PartialDeep } from "type-fest";
-import { type Pack } from "./__generated__/pack.js";
-
-type PackConfiguration = Pick<Pack, "configuration">;
 
 export const readInput = <
   TContext extends Record<string, unknown> = Record<string, unknown>,
@@ -13,8 +10,7 @@ export const readInput = <
     TContext,
     TRequestBody,
     TResponseBody
-  > &
-    PackConfiguration;
+  >;
 };
 
 export const writeOutput = <

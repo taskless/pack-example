@@ -28,7 +28,7 @@
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "@extism/js-pdk": "^1.1.1",
-    "@taskless/loader": "0.0.30",
+    "@taskless/loader": "0.0.35",
     "@types/node": "^22.16.0",
     "esbuild": "^0.19.12",
     "husky": "^9.1.7",
