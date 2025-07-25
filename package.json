@@ -2,7 +2,7 @@
   "private": true,
   "name": "@taskless/~pack-example",
   "description": "An example pack for Taskless",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "author": "Taskless",
   "license": "MIT",
   "scripts": {
