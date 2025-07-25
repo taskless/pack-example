@@ -5,7 +5,7 @@ import { manifest } from "./manifest.js";
 type Context = {
   fromPre: string;
   currentChunk?: string;
-  lines?: string[];
+  lines: number;
 };
 
 /**
@@ -35,6 +35,7 @@ export function pre() {
     context: {
       // setting context to be used in post
       fromPre: "from_pre_context_value",
+      lines: 0, // used for tracking lines received in chunk
     },
   });
 }
@@ -42,42 +43,65 @@ export function pre() {
 /**
  * chunk() is called for each chunk of the response body
  * it's data is base64 encoded
+ *
+ * This chunk() is looking for newlines, which are a sign of
+ * Server-Sent Events (SSE) or similar streaming responses.
  */
 export function chunk() {
   const input = readInput<Context>();
   const chunk = input.chunk;
 
-  if (!chunk) {
-    return;
-  }
+  // handle any received chunks in SSE format
+  if (chunk) {
+    const decoder = new TextDecoder("utf8");
+    const decodedChunk = decoder.decode(Host.base64ToArrayBuffer(chunk));
+    const current = (input.context.currentChunk ?? "") + decodedChunk;
 
-  // take base64 encoded chunk and decode it
-  const decoder = new TextDecoder("utf8");
-  const decodedChunk = decoder.decode(Host.base64ToArrayBuffer(chunk));
-  const current = (input.context.currentChunk ?? "") + decodedChunk;
+    // if it does not contain a pair of newlines, put it back and return
+    if (!current.includes("\n\n")) {
+      writeOutput<Context>({
+        context: {
+          currentChunk: current,
+        },
+      });
+    }
 
-  // if no newlines, save the current chunk and return
-  if (!current.includes("\n")) {
+    const lines = current.split("\n\n");
+    const nextChunk = lines.pop() ?? "";
+    const payloads: Record<string, string> = {};
+    for (const [index, line] of lines.entries()) {
+      const key = `chunk${input.context.lines + index + 1}`;
+      payloads[key] = line;
+    }
+
     writeOutput<Context>({
       context: {
-        currentChunk: current,
+        currentChunk: nextChunk,
+        lines: input.context.lines + lines.length,
+      },
+      capture: {
+        // capture the payloads received in this chunk
+        ...payloads,
       },
     });
 
     return;
   }
 
-  // split the current chunk by newlines, add to the context lines
-  const lines = (input.context.lines ?? [])
-    .concat(current.split("\n"))
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  // save the lines and reset the current chunk
+  // post stream. the current chunk is our last capture
+  const captureKey = `chunk${input.context.lines + 1}`;
+  const lastChunk =
+    (input.context.currentChunk?.length ?? 0) > 0
+      ? input.context.currentChunk
+      : undefined;
   writeOutput<Context>({
     context: {
       currentChunk: "",
-      lines,
+      lines: 0,
+    },
+    capture: {
+      // capture the last chunk received
+      [captureKey]: lastChunk,
     },
   });
 }
@@ -91,6 +115,9 @@ export function post() {
 
   const responseDataC = input.response?.body?.c;
 
+  const lastChunk = input.context.currentChunk;
+  const hasLastChunk = lastChunk && lastChunk.length > 0;
+
   writeOutput<Context>({
     capture: {
       // hardcoded capture in post lifecycle
@@ -98,7 +125,6 @@ export function post() {
       // explicit capture from the prior context
       testPostFromPre: input.context.fromPre,
       testResponseData: responseDataC,
-      testChunk: input.context.lines?.join("~~~"),
     },
   });
 }
